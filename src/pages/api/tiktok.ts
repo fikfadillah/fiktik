@@ -1,6 +1,8 @@
 
 import type { APIRoute } from "astro";
 
+export const runtime = "edge";
+
 export const GET: APIRoute = async ({ request }) => {
     const url = new URL(request.url);
     const targetUrl = url.searchParams.get("url");

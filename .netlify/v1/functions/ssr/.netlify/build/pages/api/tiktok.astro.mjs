@@ -1,5 +1,6 @@
 export { renderers } from '../../renderers.mjs';
 
+const runtime = "edge";
 const GET = async ({ request }) => {
   const url = new URL(request.url);
   const targetUrl = url.searchParams.get("url");
@@ -36,7 +37,8 @@ const GET = async ({ request }) => {
 
 const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    GET
+    GET,
+    runtime
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const page = () => _page;
