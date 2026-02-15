@@ -217,15 +217,8 @@ export const prerender = true;
 				}
 			}
 		} catch (e) {
-			console.warn(
-				"Client-side metadata fetch failed, trying server-side...",
-				e,
-			);
+			console.warn("Client-side metadata fetch failed.", e);
 		}
-
-		// Fallback to Server-Side
-		const res = await fetch(`/api/info?url=${encodeURIComponent(url)}`);
-		if (res.ok) return await res.json();
 		return null;
 	}
 
@@ -269,38 +262,9 @@ export const prerender = true;
 			};
 		}
 
-		// Fallback to Server-Side API (Likely to fail on Vercel if blocked, but worth keeping as backup)
-		const apiUrl = `/api/download?url=${encodeURIComponent(url)}`;
-		const response = await fetch(apiUrl);
-		if (!response.ok) {
-			const errorData = await response.json().catch(() => ({}));
-			throw new Error(
-				errorData.error || "Failed to fetch video (Server Error)",
-			);
-		}
-		const blob = await response.blob();
-		const blobUrl = URL.createObjectURL(blob);
-
-		// Get filename
-		const contentDisposition = response.headers.get("Content-Disposition");
-		let filename = "tiktok_video.mp4";
-		if (contentDisposition && contentDisposition.includes("filename=")) {
-			filename = contentDisposition
-				.split("filename=")[1]
-				.replace(/"/g, "");
-		}
-
-		// If we fell back to server-side download, we might still need metadata if fetchVideoInfo failed purely on client
-		const info = clientInfo || {};
-
-		return {
-			blobUrl,
-			filename,
-			author:
-				info?.author?.nickname || info?.author?.username || "Unknown",
-			description: info?.title || info?.desc || "No Description",
-			originalUrl: url,
-		};
+		throw new Error(
+			"Could not fetch video data. Please check the URL or try again later.",
+		);
 	}
 
 	function renderSingleResult(data: {
