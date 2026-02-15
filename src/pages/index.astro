@@ -196,10 +196,10 @@ export const prerender = true;
 	}
 
 	async function fetchVideoInfo(url: string) {
-		// Try Client-Side TikWM (CORS enabled)
+		// Use Server-Side Proxy to bypass CORS/Blocking
 		try {
-			const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}&count=12&cursor=0&web=1&hd=1`;
-			const res = await fetch(apiUrl, { referrerPolicy: "no-referrer" });
+			const apiUrl = `/api/tiktok?url=${encodeURIComponent(url)}`;
+			const res = await fetch(apiUrl);
 			if (res.ok) {
 				const data = await res.json();
 				if (data.code === 0 && data.data) {
@@ -217,7 +217,7 @@ export const prerender = true;
 				}
 			}
 		} catch (e) {
-			console.warn("Client-side metadata fetch failed.", e);
+			console.warn("Proxy metadata fetch failed.", e);
 		}
 		return null;
 	}
