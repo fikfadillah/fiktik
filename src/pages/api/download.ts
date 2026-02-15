@@ -3,6 +3,8 @@ import type { APIRoute, APIContext } from 'astro';
 import { getTikTokVideo } from '../../utils/tiktok';
 
 
+export const runtime = 'edge';
+
 export const GET: APIRoute = async ({ request }: APIContext) => {
     const url = new URL(request.url);
     const tiktokUrl = url.searchParams.get('url');
