@@ -199,7 +199,7 @@ export const prerender = true;
 		// Try Client-Side TikWM (CORS enabled)
 		try {
 			const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}&count=12&cursor=0&web=1&hd=1`;
-			const res = await fetch(apiUrl);
+			const res = await fetch(apiUrl, { referrerPolicy: "no-referrer" });
 			if (res.ok) {
 				const data = await res.json();
 				if (data.code === 0 && data.data) {
@@ -233,7 +233,9 @@ export const prerender = true;
 			let filename = `tiktok_${clientInfo.author.username}_${clientInfo.id || "video"}.mp4`;
 
 			try {
-				const vidRes = await fetch(clientInfo.playUrl);
+				const vidRes = await fetch(clientInfo.playUrl, {
+					referrerPolicy: "no-referrer",
+				});
 				if (vidRes.ok) {
 					const blob = await vidRes.blob();
 					blobUrl = URL.createObjectURL(blob);
@@ -328,7 +330,7 @@ export const prerender = true;
 				${originalUrl}
 			</div>
 			<div class="video-wrapper brutal-border">
-				<video controls src="${data.blobUrl}" style="width: 100%"></video>
+				<video controls src="${data.blobUrl}" style="width: 100%" referrerpolicy="no-referrer"></video>
 			</div>
             <div class="meta-info" style="margin-bottom: 1rem; border-bottom: 4px solid #000; padding-bottom: 1rem;">
                 <h3 style="font-weight: 800;">${data.author}</h3>
@@ -345,7 +347,7 @@ export const prerender = true;
 				})()}</p>
             </div>
 			<div class="action-buttons" style="margin-top: 1rem;">
-				<a href="${data.blobUrl}" download="${data.filename}" class="btn-action">
+				<a href="${data.blobUrl}" download="${data.filename}" class="btn-action" referrerpolicy="no-referrer">
 					DOWNLOAD MP4
 				</a>
 			</div>
