@@ -8,21 +8,36 @@ const GET = async ({ request }) => {
   }
   try {
     const parsedUrl = new URL(targetUrl);
-    const allowedHosts = ["www.tikwm.com", "tikwm.com", "v16-webapp-prime.tiktok.com", "v19-webapp-prime.tiktok.com"];
-    const isAllowed = allowedHosts.some((host) => parsedUrl.hostname.endsWith(host)) || parsedUrl.hostname.includes("tiktok") || parsedUrl.hostname.includes("tikwm") || parsedUrl.hostname.includes("akamaized");
+    const isAllowed = parsedUrl.hostname.includes("tikwm") || parsedUrl.hostname.includes("tiktok") || parsedUrl.hostname.includes("akamaized");
     if (!isAllowed) {
       return new Response("Invalid video URL", { status: 403 });
     }
-    return new Response(null, {
-      status: 302,
-      headers: {
-        "Location": targetUrl,
-        "Cache-Control": "public, max-age=300"
-      }
+    const headers = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+      "Referer": "https://www.tikwm.com/"
+    };
+    const response = await fetch(targetUrl, { headers });
+    if (!response.ok) {
+      return new Response(`Failed to fetch video: ${response.statusText}`, {
+        status: response.status
+      });
+    }
+    const responseHeaders = new Headers();
+    responseHeaders.set("Content-Type", "video/mp4");
+    responseHeaders.set("Access-Control-Allow-Origin", "*");
+    const filename = url.searchParams.get("filename") || "tiktok_video.mp4";
+    responseHeaders.set("Content-Disposition", `attachment; filename="${filename}"`);
+    const contentLength = response.headers.get("Content-Length");
+    if (contentLength) {
+      responseHeaders.set("Content-Length", contentLength);
+    }
+    return new Response(response.body, {
+      status: 200,
+      headers: responseHeaders
     });
   } catch (error) {
-    console.error("Video Redirect Error:", error);
-    return new Response("Invalid URL provided", { status: 400 });
+    console.error("Video Proxy Error:", error);
+    return new Response("Internal Server Error", { status: 500 });
   }
 };
 

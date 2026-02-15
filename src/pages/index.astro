@@ -229,8 +229,8 @@ export const prerender = true;
 			const filename = `tiktok_${clientInfo.author.username}_${clientInfo.id || "video"}.mp4`;
 			// Use TikWM CDN URL directly for video preview
 			const cdnVideoUrl = `https://www.tikwm.com${clientInfo.playUrl}`;
-			// Use our redirect endpoint for downloads (302 redirect to CDN)
-			const downloadUrl = `/api/video?url=${encodeURIComponent(cdnVideoUrl)}`;
+			// Use our streaming proxy for direct download (with filename)
+			const downloadUrl = `/api/video?url=${encodeURIComponent(cdnVideoUrl)}&filename=${encodeURIComponent(filename)}`;
 
 			return {
 				blobUrl: cdnVideoUrl, // Direct CDN URL for video preview
@@ -259,8 +259,16 @@ export const prerender = true;
 	}) {
 		if (videoPlayer) videoPlayer.src = data.blobUrl;
 		if (downloadMp4Btn) {
-			downloadMp4Btn.href = data.downloadUrl;
-			downloadMp4Btn.download = data.filename;
+			// Remove old listeners by cloning
+			const newBtn = downloadMp4Btn.cloneNode(true) as HTMLAnchorElement;
+			downloadMp4Btn.replaceWith(newBtn);
+			// Override: download via fetch+blob so it doesn't navigate away
+			newBtn.href = "#";
+			newBtn.removeAttribute("download");
+			newBtn.addEventListener("click", (e) => {
+				e.preventDefault();
+				triggerDownload(data.downloadUrl, data.filename, newBtn);
+			});
 		}
 		if (videoAuthor) videoAuthor.textContent = data.author || "@USERNAME";
 		if (videoDesc) {
@@ -330,12 +338,69 @@ export const prerender = true;
 				})()}</p>
             </div>
 			<div class="action-buttons" style="margin-top: 1rem;">
-				<a href="${data.downloadUrl}" download="${data.filename}" class="btn-action" referrerpolicy="no-referrer">
+				<a href="#" class="btn-action batch-download-btn" data-url="${data.downloadUrl}" data-filename="${data.filename}">
 					DOWNLOAD MP4
 				</a>
 			</div>
 		`;
+
+		// Attach click handler for blob download
+		const dlBtn = div.querySelector(
+			".batch-download-btn",
+		) as HTMLAnchorElement;
+		if (dlBtn) {
+			dlBtn.addEventListener("click", (e) => {
+				e.preventDefault();
+				triggerDownload(data.downloadUrl, data.filename, dlBtn);
+			});
+		}
+
 		return div;
+	}
+
+	/**
+	 * Download video via fetch → blob → object URL
+	 * This keeps the user on the same page (no redirect/navigation)
+	 */
+	async function triggerDownload(
+		proxyUrl: string,
+		filename: string,
+		btn: HTMLElement,
+	) {
+		const originalText = btn.textContent;
+		btn.textContent = "DOWNLOADING...";
+		btn.style.pointerEvents = "none";
+		btn.style.opacity = "0.6";
+
+		try {
+			const response = await fetch(proxyUrl);
+			if (!response.ok) throw new Error("Download failed");
+
+			const blob = await response.blob();
+			const blobUrl = URL.createObjectURL(blob);
+
+			// Create invisible link and click it
+			const a = document.createElement("a");
+			a.href = blobUrl;
+			a.download = filename;
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+
+			// Cleanup blob URL after short delay
+			setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+
+			btn.textContent = "DOWNLOADED ✓";
+		} catch (err) {
+			console.error("Download error:", err);
+			btn.textContent = "DOWNLOAD FAILED ✗";
+		} finally {
+			setTimeout(() => {
+				btn.textContent = originalText;
+				btn.style.pointerEvents = "auto";
+				btn.style.opacity = "1";
+			}, 2000);
+		}
 	}
 
 	function setLoading(isLoading: boolean) {

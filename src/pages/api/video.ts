@@ -1,13 +1,11 @@
 import type { APIRoute } from "astro";
 
 /**
- * Video Proxy - Redirect Strategy
+ * Video Proxy - Streaming Strategy
  * 
- * Instead of streaming the entire video through Netlify Functions
- * (which has a 20MB response limit and 10s timeout), we redirect
- * the client directly to the TikWM CDN URL.
- * 
- * This is much more efficient and avoids all Netlify limits.
+ * Fetches video from TikWM CDN and streams it to the client.
+ * Sets Content-Disposition: attachment to force download.
+ * Most TikTok videos are < 20MB (short-form content) so within Netlify limits.
  */
 export const GET: APIRoute = async ({ request }) => {
     const url = new URL(request.url);
@@ -18,30 +16,50 @@ export const GET: APIRoute = async ({ request }) => {
     }
 
     try {
-        // Validate that it's a tikwm URL for security
+        // Validate URL for security
         const parsedUrl = new URL(targetUrl);
-        const allowedHosts = ["www.tikwm.com", "tikwm.com", "v16-webapp-prime.tiktok.com", "v19-webapp-prime.tiktok.com"];
-
-        const isAllowed = allowedHosts.some(host => parsedUrl.hostname.endsWith(host)) ||
+        const isAllowed = parsedUrl.hostname.includes("tikwm") ||
             parsedUrl.hostname.includes("tiktok") ||
-            parsedUrl.hostname.includes("tikwm") ||
             parsedUrl.hostname.includes("akamaized");
 
         if (!isAllowed) {
             return new Response("Invalid video URL", { status: 403 });
         }
 
-        // 302 Redirect - client downloads directly from CDN
-        // This completely bypasses Netlify's 20MB response limit and 10s timeout
-        return new Response(null, {
-            status: 302,
-            headers: {
-                "Location": targetUrl,
-                "Cache-Control": "public, max-age=300",
-            },
+        const headers: HeadersInit = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Referer": "https://www.tikwm.com/"
+        };
+
+        const response = await fetch(targetUrl, { headers });
+
+        if (!response.ok) {
+            return new Response(`Failed to fetch video: ${response.statusText}`, {
+                status: response.status
+            });
+        }
+
+        const responseHeaders = new Headers();
+        responseHeaders.set("Content-Type", "video/mp4");
+        responseHeaders.set("Access-Control-Allow-Origin", "*");
+
+        // Force browser to download instead of playing
+        const filename = url.searchParams.get("filename") || "tiktok_video.mp4";
+        responseHeaders.set("Content-Disposition", `attachment; filename="${filename}"`);
+
+        // Forward content length if available
+        const contentLength = response.headers.get("Content-Length");
+        if (contentLength) {
+            responseHeaders.set("Content-Length", contentLength);
+        }
+
+        return new Response(response.body, {
+            status: 200,
+            headers: responseHeaders
         });
+
     } catch (error) {
-        console.error("Video Redirect Error:", error);
-        return new Response("Invalid URL provided", { status: 400 });
+        console.error("Video Proxy Error:", error);
+        return new Response("Internal Server Error", { status: 500 });
     }
 };
