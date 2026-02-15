@@ -223,18 +223,18 @@ export const prerender = true;
 	}
 
 	async function fetchVideo(url: string) {
-		// Fetch metadata & download link client-side first
 		const clientInfo = await fetchVideoInfo(url);
 
 		if (clientInfo && clientInfo.playUrl) {
-			// Use our new VIDEO PROXY
-			// This URL points to our own server, which then streams from TikTok
-			// This hides the client IP from TikTok/TikWM
-			let filename = `tiktok_${clientInfo.author.username}_${clientInfo.id || "video"}.mp4`;
-			const proxyVideoUrl = `/api/video?url=${encodeURIComponent(clientInfo.playUrl)}`;
+			const filename = `tiktok_${clientInfo.author.username}_${clientInfo.id || "video"}.mp4`;
+			// Use TikWM CDN URL directly for video preview
+			const cdnVideoUrl = `https://www.tikwm.com${clientInfo.playUrl}`;
+			// Use our redirect endpoint for downloads (302 redirect to CDN)
+			const downloadUrl = `/api/video?url=${encodeURIComponent(cdnVideoUrl)}`;
 
 			return {
-				blobUrl: proxyVideoUrl, // We use the proxy URL as the source
+				blobUrl: cdnVideoUrl, // Direct CDN URL for video preview
+				downloadUrl: downloadUrl, // Redirect URL for download button
 				filename,
 				author:
 					clientInfo.author.nickname ||
@@ -242,7 +242,6 @@ export const prerender = true;
 					"Unknown",
 				description: clientInfo.title || "No Description",
 				originalUrl: url,
-				isDirectLink: true,
 			};
 		}
 
@@ -253,13 +252,14 @@ export const prerender = true;
 
 	function renderSingleResult(data: {
 		blobUrl: string;
+		downloadUrl: string;
 		filename: string;
 		author: string;
 		description: string;
 	}) {
 		if (videoPlayer) videoPlayer.src = data.blobUrl;
 		if (downloadMp4Btn) {
-			downloadMp4Btn.href = data.blobUrl;
+			downloadMp4Btn.href = data.downloadUrl;
 			downloadMp4Btn.download = data.filename;
 		}
 		if (videoAuthor) videoAuthor.textContent = data.author || "@USERNAME";
@@ -295,6 +295,7 @@ export const prerender = true;
 	function createResultCard(
 		data: {
 			blobUrl: string;
+			downloadUrl: string;
 			filename: string;
 			author: string;
 			description: string;
@@ -329,7 +330,7 @@ export const prerender = true;
 				})()}</p>
             </div>
 			<div class="action-buttons" style="margin-top: 1rem;">
-				<a href="${data.blobUrl}" download="${data.filename}" class="btn-action" referrerpolicy="no-referrer">
+				<a href="${data.downloadUrl}" download="${data.filename}" class="btn-action" referrerpolicy="no-referrer">
 					DOWNLOAD MP4
 				</a>
 			</div>

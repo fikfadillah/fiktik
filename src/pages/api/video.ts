@@ -1,8 +1,14 @@
-
 import type { APIRoute } from "astro";
 
-export const runtime = "edge";
-
+/**
+ * Video Proxy - Redirect Strategy
+ * 
+ * Instead of streaming the entire video through Netlify Functions
+ * (which has a 20MB response limit and 10s timeout), we redirect
+ * the client directly to the TikWM CDN URL.
+ * 
+ * This is much more efficient and avoids all Netlify limits.
+ */
 export const GET: APIRoute = async ({ request }) => {
     const url = new URL(request.url);
     const targetUrl = url.searchParams.get("url");
@@ -12,40 +18,30 @@ export const GET: APIRoute = async ({ request }) => {
     }
 
     try {
-        const headers: HeadersInit = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Referer": "https://www.tikwm.com/"
-        };
+        // Validate that it's a tikwm URL for security
+        const parsedUrl = new URL(targetUrl);
+        const allowedHosts = ["www.tikwm.com", "tikwm.com", "v16-webapp-prime.tiktok.com", "v19-webapp-prime.tiktok.com"];
 
-        // Forward Range header if present
-        const range = request.headers.get("Range");
-        if (range) {
-            headers["Range"] = range;
+        const isAllowed = allowedHosts.some(host => parsedUrl.hostname.endsWith(host)) ||
+            parsedUrl.hostname.includes("tiktok") ||
+            parsedUrl.hostname.includes("tikwm") ||
+            parsedUrl.hostname.includes("akamaized");
+
+        if (!isAllowed) {
+            return new Response("Invalid video URL", { status: 403 });
         }
 
-        const response = await fetch(targetUrl, {
-            headers: headers
+        // 302 Redirect - client downloads directly from CDN
+        // This completely bypasses Netlify's 20MB response limit and 10s timeout
+        return new Response(null, {
+            status: 302,
+            headers: {
+                "Location": targetUrl,
+                "Cache-Control": "public, max-age=300",
+            },
         });
-
-        if (!response.ok && response.status !== 206) {
-            console.error(`Failed to fetch video: ${response.status} ${response.statusText}`);
-            return new Response(`Failed to fetch video: ${response.statusText}`, { status: response.status });
-        }
-
-        const responseHeaders = new Headers(response.headers);
-
-        // Ensure proper CORS and Content-Disposition
-        responseHeaders.set("Access-Control-Allow-Origin", "*");
-        responseHeaders.set("Content-Disposition", "attachment; filename=\"tiktok_video.mp4\"");
-
-        // If upstream returns 206, we must forward 206
-        return new Response(response.body, {
-            status: response.status,
-            headers: responseHeaders
-        });
-
     } catch (error) {
-        console.error("Video Proxy Error:", error);
-        return new Response("Internal Server Error", { status: 500 });
+        console.error("Video Redirect Error:", error);
+        return new Response("Invalid URL provided", { status: 400 });
     }
 };

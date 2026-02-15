@@ -1,6 +1,5 @@
 export { renderers } from '../../renderers.mjs';
 
-const runtime = "edge";
 const GET = async ({ request }) => {
   const url = new URL(request.url);
   const targetUrl = url.searchParams.get("url");
@@ -22,11 +21,8 @@ const GET = async ({ request }) => {
   try {
     const userAgents = [
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-      // Desktop Chrome
       "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.1",
-      // iPhone Safari
       "Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36"
-      // Android Chrome
     ];
     let response;
     let data;
@@ -67,8 +63,7 @@ const GET = async ({ request }) => {
 
 const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    GET,
-    runtime
+    GET
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const page = () => _page;
