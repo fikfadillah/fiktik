@@ -227,32 +227,14 @@ export const prerender = true;
 		const clientInfo = await fetchVideoInfo(url);
 
 		if (clientInfo && clientInfo.playUrl) {
-			// We have client-side data!
-			// Try to fetch blob directly (if CORS allows)
-			let blobUrl = "";
+			// Use our new VIDEO PROXY
+			// This URL points to our own server, which then streams from TikTok
+			// This hides the client IP from TikTok/TikWM
 			let filename = `tiktok_${clientInfo.author.username}_${clientInfo.id || "video"}.mp4`;
-
-			try {
-				const vidRes = await fetch(clientInfo.playUrl, {
-					referrerPolicy: "no-referrer",
-				});
-				if (vidRes.ok) {
-					const blob = await vidRes.blob();
-					blobUrl = URL.createObjectURL(blob);
-				} else {
-					// unexpected error fetching video bytes
-					blobUrl = clientInfo.playUrl; // Fallback to direct link
-				}
-			} catch (err) {
-				console.warn(
-					"CORS/Network error fetching video blob, using direct link:",
-					err,
-				);
-				blobUrl = clientInfo.playUrl; // Fallback to direct link
-			}
+			const proxyVideoUrl = `/api/video?url=${encodeURIComponent(clientInfo.playUrl)}`;
 
 			return {
-				blobUrl,
+				blobUrl: proxyVideoUrl, // We use the proxy URL as the source
 				filename,
 				author:
 					clientInfo.author.nickname ||
@@ -260,7 +242,7 @@ export const prerender = true;
 					"Unknown",
 				description: clientInfo.title || "No Description",
 				originalUrl: url,
-				isDirectLink: blobUrl === clientInfo.playUrl, // Flag to UI?
+				isDirectLink: true,
 			};
 		}
 
