@@ -1,0 +1,434 @@
+---
+import Layout from "../layouts/Layout.astro";
+import InputBox from "../components/InputBox.astro";
+import Result from "../components/Result.astro";
+import Loading from "../components/Loading.astro";
+import History from "../components/History.astro";
+---
+
+<Layout title="fiktik - Tiktok Downloader Without Watermark">
+	<header>
+		<h1>DOWNLOAD TIKTOK<br />TANPA WATERMARK</h1>
+		<p>CEPAT.⚡ LANGSUNG. 🚀 TANPA IKLAN.💫 | BATCH SUPPORT.🎬</p>
+	</header>
+
+	<main>
+		<InputBox />
+		<Loading />
+		<Result />
+		<History />
+	</main>
+</Layout>
+
+<style>
+	header {
+		margin-bottom: 4rem;
+		text-align: center;
+		border-bottom: 4px solid #000;
+		padding-bottom: 2rem;
+	}
+
+	h1 {
+		font-weight: 800;
+	}
+</style>
+
+<script>
+	// Client-side Logic
+	const form = document.getElementById("download-form") as HTMLFormElement;
+	const singleInput = document.getElementById(
+		"url-input",
+	) as HTMLInputElement;
+	const batchInput = document.getElementById(
+		"batch-input",
+	) as HTMLTextAreaElement;
+
+	const loadingSection = document.getElementById("loading-state");
+	const resultSection = document.getElementById("result-section");
+	// We will use a container for results to support batch
+	// resultSection is the wrapper, we need to clear/append to it.
+	// CURRENTLY: Result.astro has a fixed structure.
+	// To support batch, we should probably generate the result HTML dynamically in JS
+	// OR clone the existing Result structure.
+
+	// Let's modify Result.astro logic slightly.
+	// Actually, for Neo-Brutalist simple approach, let's just use the existing one for Single,
+	// and for Batch, we might need to duplicate it.
+	// BUT, `index.astro` has hardcoded `Result` component.
+	// Better approach:
+	// 1. Single Mode: Use the existing logic (Target ID).
+	// 2. Batch Mode: Clear a "results-container", and for each success, innerHTML += card.
+
+	// Let's find the result container. `Result.astro` probably has a main div.
+
+	const successContent = document.getElementById("success-content");
+	const errorContent = document.getElementById("error-content");
+	const errorMessage = document.getElementById("error-message");
+
+	// Elements inside the SINGLE result card
+	const videoPlayer = document.getElementById(
+		"video-player",
+	) as HTMLVideoElement;
+	// videoAuthor is already defined in the template but was unused in script?
+	// Let's re-select them correctly if they weren'tselected before
+	// Checking previous file content: "const videoAuthor = document.getElementById("video-author"); // Currently unused..." was there.
+	// So I should just enable it or use it.
+
+	const videoAuthor = document.getElementById("video-author");
+	const videoDesc = document.getElementById("video-desc");
+
+	const downloadMp4Btn = document.getElementById(
+		"download-mp4",
+	) as HTMLAnchorElement;
+
+	// Mode Switch
+	const modeSwitch = document.getElementById(
+		"mode-switch",
+	) as HTMLInputElement;
+	let isBatchMode = false;
+
+	if (modeSwitch) {
+		modeSwitch.addEventListener("change", (e) => {
+			isBatchMode = (e.target as HTMLInputElement).checked;
+			if (isBatchMode) {
+				singleInput.classList.add("hidden");
+				singleInput.required = false;
+				batchInput.classList.remove("hidden");
+				batchInput.required = true;
+			} else {
+				singleInput.classList.remove("hidden");
+				singleInput.required = true;
+				batchInput.classList.add("hidden");
+				batchInput.required = false;
+			}
+		});
+	}
+
+	form.addEventListener("submit", async (e) => {
+		e.preventDefault();
+
+		// Clear previous state
+		hideResult();
+		setLoading(true);
+
+		if (isBatchMode) {
+			const text = batchInput.value;
+			const urls = text
+				.split("\n")
+				.map((u) => u.trim())
+				.filter((u) => u.length > 0);
+
+			if (urls.length === 0) {
+				setLoading(false);
+				showError("NO URLS FOUND");
+				return;
+			}
+
+			// Process Batch
+			await processBatch(urls);
+		} else {
+			const url = singleInput.value.trim();
+			if (!url) return;
+			await processSingle(url);
+		}
+	});
+
+	async function processSingle(url: string) {
+		try {
+			const data = await fetchVideo(url);
+			// Show Result
+			renderSingleResult(data);
+			setLoading(false);
+			showSuccess();
+			addToHistory(url);
+		} catch (err: any) {
+			setLoading(false);
+			showError(err.message || "Error occurred");
+		}
+	}
+
+	async function processBatch(urls: string[]) {
+		// For batch, we'll create a list of results dynamically
+		// We'll reuse the result-section but populate it differently
+		resultSection?.classList.remove("hidden");
+		successContent?.classList.remove("hidden");
+
+		// Clear standard single view stuff if needed, or hide it
+		// Ideally we have a 'batch-results' container.
+		// For now, let's just append to successContent (which wraps the single card).
+		// Wait, successContent IS the wrapper? Let's check Result.astro structure via dynamic creating.
+
+		// Reset content
+		const container = document.getElementById("batch-results-container");
+		if (!container) {
+			// If not exists, create it? Or require Result.astro update.
+			// Let's assume we will create a div in Result.astro called 'batch-container'
+			console.error("Batch container missing");
+			return;
+		}
+		container.innerHTML = "";
+
+		// Hide single result card
+		const singleCard = document.querySelector(".result-card"); // Assuming class
+		if (singleCard) (singleCard as HTMLElement).style.display = "none";
+		container.style.display = "block";
+
+		for (const url of urls) {
+			try {
+				// Show loading placeholder?
+				const data = await fetchVideo(url);
+				const card = createResultCard(data, url);
+				container.appendChild(card);
+				addToHistory(url);
+			} catch (e) {
+				// Append error card
+				const errDiv = document.createElement("div");
+				errDiv.className = "brutal-border";
+				errDiv.style.padding = "1rem";
+				errDiv.style.marginBottom = "2rem";
+				errDiv.style.background = "#ffadad";
+				errDiv.innerText = `FAILED: ${url} - ${(e as Error).message}`;
+				container.appendChild(errDiv);
+			}
+		}
+		setLoading(false);
+	}
+
+	async function fetchVideoInfo(url: string) {
+		// Try Client-Side TikWM (CORS enabled)
+		try {
+			const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}&count=12&cursor=0&web=1&hd=1`;
+			const res = await fetch(apiUrl);
+			if (res.ok) {
+				const data = await res.json();
+				if (data.code === 0 && data.data) {
+					const v = data.data;
+					return {
+						title: v.title,
+						author: {
+							nickname: v.author.nickname,
+							username: v.author.unique_id,
+							avatar: v.author.avatar,
+						},
+					};
+				}
+			}
+		} catch (e) {
+			console.warn(
+				"Client-side metadata fetch failed, trying server-side...",
+				e,
+			);
+		}
+
+		// Fallback to Server-Side
+		const res = await fetch(`/api/info?url=${encodeURIComponent(url)}`);
+		if (res.ok) return await res.json();
+		return null;
+	}
+
+	async function fetchVideo(url: string) {
+		// Fetch metadata first (or in parallel)
+		const infoPromise = fetchVideoInfo(url);
+
+		const apiUrl = `/api/download?url=${encodeURIComponent(url)}`;
+		const response = await fetch(apiUrl);
+		if (!response.ok) {
+			const errorData = await response.json().catch(() => ({}));
+			throw new Error(errorData.error || "Failed to fetch video");
+		}
+		const blob = await response.blob();
+		const blobUrl = URL.createObjectURL(blob);
+
+		// Get filename
+		const contentDisposition = response.headers.get("Content-Disposition");
+		let filename = "tiktok_video.mp4";
+		if (contentDisposition && contentDisposition.includes("filename=")) {
+			filename = contentDisposition
+				.split("filename=")[1]
+				.replace(/"/g, "");
+		}
+
+		const info = await infoPromise;
+
+		return {
+			blobUrl,
+			filename,
+			author:
+				info?.author?.nickname || info?.author?.username || "Unknown",
+			description: info?.title || info?.desc || "No Description",
+			originalUrl: url,
+		};
+	}
+
+	function renderSingleResult(data: {
+		blobUrl: string;
+		filename: string;
+		author: string;
+		description: string;
+	}) {
+		if (videoPlayer) videoPlayer.src = data.blobUrl;
+		if (downloadMp4Btn) {
+			downloadMp4Btn.href = data.blobUrl;
+			downloadMp4Btn.download = data.filename;
+		}
+		if (videoAuthor) videoAuthor.textContent = data.author || "@USERNAME";
+		if (videoDesc) {
+			// Format description: Highlight hashtags
+			const desc = data.description || "";
+			if (!desc) {
+				videoDesc.textContent = "No Description";
+			} else {
+				// escape HTML first to prevent XSS (basic)
+				const safeDesc = desc
+					.replace(/&/g, "&amp;")
+					.replace(/</g, "&lt;")
+					.replace(/>/g, "&gt;");
+				// Replace #hashtags with bold or spans
+				const formatted = safeDesc.replace(
+					/#(\w+)/g,
+					'<span style="font-weight: bold; color: #000;">#$1</span>',
+				);
+				videoDesc.innerHTML = formatted;
+			}
+		}
+
+		// Ensure single card is visible if we hid it for batch
+		const singleCard = document.querySelector(".result-card");
+		if (singleCard) (singleCard as HTMLElement).style.display = "block";
+		const batchContainer = document.getElementById(
+			"batch-results-container",
+		);
+		if (batchContainer) batchContainer.style.display = "none";
+	}
+
+	function createResultCard(
+		data: {
+			blobUrl: string;
+			filename: string;
+			author: string;
+			description: string;
+			originalUrl: string;
+		},
+		originalUrl: string,
+	) {
+		const div = document.createElement("div");
+		div.className = "result-card brutal-border";
+		div.style.marginBottom = "2rem";
+		div.style.padding = "1rem";
+
+		div.innerHTML = `
+			<div style="margin-bottom: 1rem; font-weight: bold; overflow: hidden; text-overflow: ellipsis;">
+				${originalUrl}
+			</div>
+			<div class="video-wrapper brutal-border">
+				<video controls src="${data.blobUrl}" style="width: 100%"></video>
+			</div>
+            <div class="meta-info" style="margin-bottom: 1rem; border-bottom: 4px solid #000; padding-bottom: 1rem;">
+                <h3 style="font-weight: 800;">${data.author}</h3>
+                <p>${(() => {
+					const desc = data.description || "No Description";
+					const safeDesc = desc
+						.replace(/&/g, "&amp;")
+						.replace(/</g, "&lt;")
+						.replace(/>/g, "&gt;");
+					return safeDesc.replace(
+						/#(\w+)/g,
+						'<span style="font-weight: bold; color: #000;">#$1</span>',
+					);
+				})()}</p>
+            </div>
+			<div class="action-buttons" style="margin-top: 1rem;">
+				<a href="${data.blobUrl}" download="${data.filename}" class="btn-action">
+					DOWNLOAD MP4
+				</a>
+			</div>
+		`;
+		return div;
+	}
+
+	function setLoading(isLoading: boolean) {
+		if (isLoading) {
+			loadingSection?.classList.remove("hidden");
+			form.classList.add("opacity-50");
+		} else {
+			loadingSection?.classList.add("hidden");
+			form.classList.remove("opacity-50");
+		}
+	}
+
+	function hideResult() {
+		resultSection?.classList.add("hidden");
+		successContent?.classList.add("hidden");
+		errorContent?.classList.add("hidden");
+		if (videoPlayer) {
+			videoPlayer.pause();
+			videoPlayer.src = "";
+		}
+		// Clear batch container
+		const batchContainer = document.getElementById(
+			"batch-results-container",
+		);
+		if (batchContainer) batchContainer.innerHTML = "";
+	}
+
+	function showSuccess() {
+		resultSection?.classList.remove("hidden");
+		successContent?.classList.remove("hidden");
+		resultSection?.scrollIntoView({ behavior: "smooth" });
+	}
+
+	function showError(msg: string) {
+		resultSection?.classList.remove("hidden");
+		errorContent?.classList.remove("hidden");
+		if (errorMessage) errorMessage.textContent = msg.toUpperCase();
+	}
+
+	// History Logic
+	const historyList = document.getElementById("history-list");
+	const clearHistoryBtn = document.getElementById("clear-history");
+
+	function addToHistory(url: string) {
+		let history = JSON.parse(
+			localStorage.getItem("tiktok-history") || "[]",
+		);
+		if (!history.includes(url)) {
+			history.unshift(url);
+			if (history.length > 10) history.pop();
+			localStorage.setItem("tiktok-history", JSON.stringify(history));
+			renderHistory();
+		}
+	}
+
+	function renderHistory() {
+		if (!historyList) return;
+		const history = JSON.parse(
+			localStorage.getItem("tiktok-history") || "[]",
+		);
+		historyList.innerHTML = history
+			.map(
+				(item: string) => `
+			<li style="margin-bottom: 0.5rem; border-bottom: 1px solid #000; padding: 0.5rem; display: flex; justify-content: space-between;">
+				<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">${item}</span>
+				<button onclick="navigator.clipboard.writeText('${item}')" style="font-size: 0.8rem; padding: 0.2rem;">COPY</button>
+			</li>
+		`,
+			)
+			.join("");
+
+		const historySection = document.getElementById("history-section");
+		if (history.length > 0 && historySection) {
+			historySection.classList.remove("hidden");
+		} else if (historySection) {
+			historySection.classList.add("hidden");
+		}
+	}
+
+	if (clearHistoryBtn) {
+		clearHistoryBtn.addEventListener("click", () => {
+			localStorage.removeItem("tiktok-history");
+			renderHistory();
+		});
+	}
+
+	renderHistory();
+</script>

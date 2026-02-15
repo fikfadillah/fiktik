@@ -1,0 +1,79 @@
+---
+
+---
+
+<div class="input-section">
+	<form id="download-form">
+		<div class="mode-toggle">
+			<label class="switch-c">
+				<input type="checkbox" id="mode-switch" class="hidden" />
+				<div class="toggle-label">
+					<span class="option" data-mode="single">SINGLE</span>
+					<span class="option" data-mode="batch">BATCH</span>
+				</div>
+			</label>
+		</div>
+
+		<div class="input-wrapper">
+			<input
+				type="url"
+				id="url-input"
+				placeholder="PASTE TIKTOK URL HERE"
+				required
+				autocomplete="off"
+			/>
+			<textarea
+				id="batch-input"
+				class="hidden"
+				placeholder="PASTE TIKTOK URLS HERE (ONE PER LINE)"
+				rows="5"></textarea>
+		</div>
+
+		<button type="submit" class="btn-large"> DOWNLOAD VIDEO </button>
+	</form>
+</div>
+
+<style>
+	.hidden {
+		display: none !important;
+	}
+
+	textarea {
+		width: 100%;
+		padding: 1rem;
+		font-family: inherit;
+		font-size: 1.25rem;
+		border: 4px solid #000;
+		background: #fff;
+		color: #000;
+		border-radius: 0;
+		outline: none;
+		font-weight: 700;
+		resize: vertical;
+	}
+
+	.toggle-label {
+		display: flex;
+	}
+
+	.option {
+		padding: 0.5rem 1rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		transition:
+			background 0.1s,
+			color 0.1s;
+	}
+
+	/* Default State: Single Selected */
+	.switch-c input:not(:checked) ~ .toggle-label .option[data-mode="single"] {
+		background: #000;
+		color: #fff;
+	}
+
+	/* Checked State: Batch Selected */
+	.switch-c input:checked ~ .toggle-label .option[data-mode="batch"] {
+		background: #000;
+		color: #fff;
+	}
+</style>
