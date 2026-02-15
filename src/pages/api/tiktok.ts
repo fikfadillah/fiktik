@@ -14,19 +14,48 @@ export const GET: APIRoute = async ({ request }) => {
         });
     }
 
-    try {
-        // We use a different user-agent to avoid detection if possible, or just standard fetch
+    const fetchWithUA = async (ua: string) => {
         const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(targetUrl)}&count=12&cursor=0&web=1&hd=1`;
-
-        // Fetch from the server side
-        const response = await fetch(apiUrl, {
+        const res = await fetch(apiUrl, {
             headers: {
-                // Mimic a browser request if needed, or keep it simple
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                "User-Agent": ua
             }
         });
+        return res;
+    };
 
-        const data = await response.json();
+    try {
+        // List of User-Agents to rotate/retry
+        const userAgents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36", // Desktop Chrome
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.1", // iPhone Safari
+            "Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36", // Android Chrome
+        ];
+
+        let response;
+        let data;
+
+        // Simple Retry Logic
+        for (const ua of userAgents) {
+            try {
+                response = await fetchWithUA(ua);
+                if (response.ok) {
+                    data = await response.json();
+                    if (data && data.code === 0) {
+                        break; // Success!
+                    }
+                }
+            } catch (e) {
+                console.warn(`Attempt failed with UA: ${ua}`, e);
+            }
+        }
+
+        if (!data || data.code !== 0) {
+            return new Response(JSON.stringify({ error: "Failed to fetch data from upstream" }), {
+                status: 502,
+                headers: { "Content-Type": "application/json" },
+            });
+        }
 
         return new Response(JSON.stringify(data), {
             status: 200,
