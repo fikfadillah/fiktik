@@ -204,7 +204,9 @@ import History from "../components/History.astro";
 				if (data.code === 0 && data.data) {
 					const v = data.data;
 					return {
+						id: v.id,
 						title: v.title,
+						playUrl: v.play, // Direct video URL
 						author: {
 							nickname: v.author.nickname,
 							username: v.author.unique_id,
@@ -227,14 +229,53 @@ import History from "../components/History.astro";
 	}
 
 	async function fetchVideo(url: string) {
-		// Fetch metadata first (or in parallel)
-		const infoPromise = fetchVideoInfo(url);
+		// Fetch metadata & download link client-side first
+		const clientInfo = await fetchVideoInfo(url);
 
+		if (clientInfo && clientInfo.playUrl) {
+			// We have client-side data!
+			// Try to fetch blob directly (if CORS allows)
+			let blobUrl = "";
+			let filename = `tiktok_${clientInfo.author.username}_${clientInfo.id || "video"}.mp4`;
+
+			try {
+				const vidRes = await fetch(clientInfo.playUrl);
+				if (vidRes.ok) {
+					const blob = await vidRes.blob();
+					blobUrl = URL.createObjectURL(blob);
+				} else {
+					// unexpected error fetching video bytes
+					blobUrl = clientInfo.playUrl; // Fallback to direct link
+				}
+			} catch (err) {
+				console.warn(
+					"CORS/Network error fetching video blob, using direct link:",
+					err,
+				);
+				blobUrl = clientInfo.playUrl; // Fallback to direct link
+			}
+
+			return {
+				blobUrl,
+				filename,
+				author:
+					clientInfo.author.nickname ||
+					clientInfo.author.username ||
+					"Unknown",
+				description: clientInfo.title || "No Description",
+				originalUrl: url,
+				isDirectLink: blobUrl === clientInfo.playUrl, // Flag to UI?
+			};
+		}
+
+		// Fallback to Server-Side API (Likely to fail on Vercel if blocked, but worth keeping as backup)
 		const apiUrl = `/api/download?url=${encodeURIComponent(url)}`;
 		const response = await fetch(apiUrl);
 		if (!response.ok) {
 			const errorData = await response.json().catch(() => ({}));
-			throw new Error(errorData.error || "Failed to fetch video");
+			throw new Error(
+				errorData.error || "Failed to fetch video (Server Error)",
+			);
 		}
 		const blob = await response.blob();
 		const blobUrl = URL.createObjectURL(blob);
@@ -248,7 +289,8 @@ import History from "../components/History.astro";
 				.replace(/"/g, "");
 		}
 
-		const info = await infoPromise;
+		// If we fell back to server-side download, we might still need metadata if fetchVideoInfo failed purely on client
+		const info = clientInfo || {};
 
 		return {
 			blobUrl,
